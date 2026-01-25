@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+venv/
+
+# Secrets / local data
+vault.enc
+meta.json
+data.json
+password.json
+
+# OS
+.DS_Store
