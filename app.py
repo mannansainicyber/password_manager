@@ -52,15 +52,27 @@ def main():
 
         # ---- MAIN MENU ----
         while True:
-            print("\n1. Generate password")
-            print("2. Check password strength")
-            print("3. List saved services")
-            print("4. Logout")
-            print("5. Exit")
+            print("\n3. View service password")
+            print("4. Generate password")
+            print("5. Check password strength")
+            print("6. List saved services")
+            print("7. Add service manually")
+            print("8. Delete service")
+            print("9. Search services")
+            print("10. Logout")
+            print("11. Exit")
 
             choice = input("Select: ")
 
-            if choice == "1":
+            if choice == "3":
+                service = input("Service name: ")
+                pwd = vault.get(service)
+                if pwd:
+                    print(f"Password for {service}: {pwd}")
+                else:
+                    print("Service not found")
+
+            elif choice == "4":
                 length = int(input("Password length: "))
                 pwd = generate_password(length)
 
@@ -75,19 +87,52 @@ def main():
                     save_encrypted_vault(vault, key)
                     print("Saved securely 🔐")
 
-            elif choice == "2":
+            elif choice == "5":
                 pwd = input("Enter password: ")
                 print(check_strength(pwd))
 
-            elif choice == "3":
+            elif choice == "6":
+                if not vault:
+                    print("No services saved")
                 for service in vault:
                     print("-", service)
 
-            elif choice == "4":
+            elif choice == "7":
+                service = input("Service name: ")
+                pwd = input("Password: ")
+                if service in vault:
+                    print("Service already exists")
+                    print("Use 'Delete' option to remove it first")
+                else:
+                    vault[service] = pwd
+                save_encrypted_vault(vault, key)
+                print("Service added 🔐")
+
+            elif choice == "8":
+                service = input("Service to delete: ")
+                if service in vault:
+                    del vault[service]
+                    save_encrypted_vault(vault, key)
+                    print("Service deleted 🗑️")
+                else:
+                    print("Service not found")
+
+            elif choice == "9":
+                term = input("Search term: ").lower()
+                matches = [s for s in vault if term in s.lower()]
+
+                if matches:
+                    print("Matches:")
+                    for s in matches:
+                        print("-", s)
+                else:
+                    print("No matching services")
+
+            elif choice == "10":
                 print("Logged out 🔒")
                 break
 
-            elif choice == "5":
+            elif choice == "11":
                 print("👋 Bye")
                 exit()
 
