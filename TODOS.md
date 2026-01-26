@@ -1,11 +1,11 @@
 # Password Manager - Project Todos
 
 ## Core Features
-- [ ] Implement secure password encryption/decryption
-- [ ] Build password storage and retrieval system
+- [x] Implement secure password encryption/decryption
+- [x] Build password storage and retrieval system
 - [ ] Create user authentication and session management
-- [ ] Implement password generation utility
-- [ ] Add password strength validation
+- [x] Implement password generation utility
+- [x] Add password strength validation
 
 ## User Interface
 - [ ] Design and build login/signup interface
@@ -15,17 +15,17 @@
 - [ ] Add password visibility toggle and copy-to-clipboard functionality
 
 ## Backend & Database
-- [ ] Set up database schema and migrations
+- [x] Set up database schema and migrations
 - [ ] Implement user account management API
 - [ ] Build password CRUD endpoints
-- [ ] Set up encryption key management
+- [x] Set up encryption key management
 - [ ] Configure database backup and recovery
 
 ## Security
-- [ ] Implement master password security
+- [x] Implement master password security
 - [ ] Add two-factor authentication (2FA)
 - [ ] Set up HTTPS/TLS for all communications
-- [ ] Implement password hashing and salting
+- [x] Implement password hashing and salting
 - [ ] Add security audit logging
 
 ## Testing & Quality
@@ -36,8 +36,8 @@
 - [ ] Load and performance testing
 
 ## Documentation
-- [ ] Write API documentation
-- [ ] Create user guide/README
+- [x] Write API documentation
+- [x] Create user guide/README
 - [ ] Document setup and installation instructions
 - [ ] Add security best practices guide
 - [ ] Create developer documentation
@@ -59,4 +59,4 @@
 ---
 
 **Last Updated:** 2026-01-26
-**Status:** Project Planning Phase
+**Status:** Core Features In Progress
