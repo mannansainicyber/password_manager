@@ -21,6 +21,9 @@ class Session:
             return True
         return (time.time() - self.last_activity) > SESSION_TIMEOUT
 
+    def is_active(self) -> bool:
+        return self.active and not self.is_expired()
+
     def remaining_time(self) -> int:
         if not self.active or self.last_activity is None:
             return 0
