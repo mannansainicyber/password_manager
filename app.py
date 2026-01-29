@@ -1,23 +1,57 @@
+import subprocess
+import sys
 import os
 import json
 import base64
 from utils import set_master_password, verify_master_password
 from generator import generate_password
-from strength import check_strength
-from storage import derive_key, load_encrypted_vault, save_encrypted_vault
+from storage import derive_key, load_encrypted_vault, backup_vault
 from session import Session
+from ui import (
+    display_menu,
+    handle_view_password,
+    handle_generate_password,
+    handle_check_strength,
+    handle_list_services,
+    handle_add_service,
+    handle_delete_service,
+    handle_search_services,
+    handle_backup,
+    handle_logout,
+    handle_exit,
+    MENU_VIEW,
+    MENU_GENERATE,
+    MENU_CHECK_STRENGTH,
+    MENU_LIST,
+    MENU_ADD,
+    MENU_DELETE,
+    MENU_SEARCH,
+    MENU_BACKUP,
+    MENU_LOGOUT,
+    MENU_EXIT,
+)
 
 META_FILE = "meta.json"
 
 
-def auth():
-    tries = 0
+def install_dependencies():
+    required_packages = ["cryptography"]
+    
+    for package in required_packages:
+        try:
+            __import__(package)
+        except ImportError:
+            print(f"Installing missing dependency: {package}...")
+            subprocess.check_call([sys.executable, "-m", "pip", "install", package])
 
+
+def auth():
     if not os.path.exists(META_FILE):
         master = input("Set a master password: ")
         set_master_password(master)
         return master
 
+    tries = 0
     while tries < 3:
         master = input("Enter master password: ")
         if verify_master_password(master):
@@ -30,107 +64,54 @@ def auth():
     exit()
 
 
+def run_session(master, session):
+    with open(META_FILE) as f:
+        salt = base64.b64decode(json.load(f)["salt"])
+    
+    key = derive_key(master, salt)
+    vault = load_encrypted_vault(key)
+    session.start()
+    
+    commands = {
+        MENU_VIEW: (handle_view_password, [vault]),
+        MENU_GENERATE: (handle_generate_password, [vault, key, generate_password]),
+        MENU_CHECK_STRENGTH: (handle_check_strength, []),
+        MENU_LIST: (handle_list_services, [vault]),
+        MENU_ADD: (handle_add_service, [vault, key]),
+        MENU_DELETE: (handle_delete_service, [vault, key]),
+        MENU_SEARCH: (handle_search_services, [vault]),
+        MENU_BACKUP: (handle_backup, [backup_vault]),
+        MENU_LOGOUT: (handle_logout, [session]),
+        MENU_EXIT: (handle_exit, []),
+    }
+    
+    while True:
+        if not session.is_active():
+            print("Session expired 🔒")
+            break
+        
+        display_menu()
+        choice = input("Select: ").strip()
+        session.touch()
+        
+        if choice in commands:
+            handler, args = commands[choice]
+            result = handler(*args)
+            if result == "logout":
+                break
+        else:
+            print("Invalid option")
+
+
 def main():
     print("🔐 Password Manager")
-
     session = Session()
-
+    
     while True:
         master = auth()
-
-        with open(META_FILE) as f:
-            salt = base64.b64decode(json.load(f)["salt"])
-
-        key = derive_key(master, salt)
-        vault = load_encrypted_vault(key)
-
-        session.start()
-
-        while True:
-            if not session.is_active():
-                print("Session expired 🔒")
-                break
-
-            print("\n3. View service password")
-            print("4. Generate password")
-            print("5. Check password strength")
-            print("6. List saved services")
-            print("7. Add service manually")
-            print("8. Delete service")
-            print("9. Search services")
-            print("10. Logout")
-            print("11. Exit")
-
-            choice = input("Select: ")
-            session.touch()
-
-            if choice == "3":
-                service = input("Service name: ")
-                print(vault.get(service, "Service not found"))
-
-            elif choice == "4":
-                length = int(input("Password length: "))
-                pwd = generate_password(length)
-                result = check_strength(pwd)
-                print("Generated:", pwd)
-                print("Strength:", result["level"], "| Entropy:", result["entropy"])
-
-                if input("Save password? (y/n): ").lower() == "y":
-                    service = input("Service name: ")
-                    vault[service] = pwd
-                    save_encrypted_vault(vault, key)
-                    print("Saved securely 🔐")
-
-            elif choice == "5":
-                pwd = input("Enter password: ")
-                print(check_strength(pwd))
-
-            elif choice == "6":
-                if not vault:
-                    print("No services saved")
-                for s in vault:
-                    print("-", s)
-
-            elif choice == "7":
-                service = input("Service name: ")
-                pwd = input("Password: ")
-                if service in vault:
-                    print("Service already exists")
-                else:
-                    vault[service] = pwd
-                    save_encrypted_vault(vault, key)
-                    print("Service added 🔐")
-
-            elif choice == "8":
-                service = input("Service to delete: ")
-                if service in vault:
-                    del vault[service]
-                    save_encrypted_vault(vault, key)
-                    print("Service deleted 🗑️")
-                else:
-                    print("Service not found")
-
-            elif choice == "9":
-                term = input("Search term: ").lower()
-                matches = [s for s in vault if term in s.lower()]
-                if matches:
-                    for s in matches:
-                        print("-", s)
-                else:
-                    print("No matching services")
-
-            elif choice == "10":
-                print("Logged out 🔒")
-                session.end()
-                break
-
-            elif choice == "11":
-                print("👋 Bye")
-                exit()
-
-            else:
-                print("Invalid option")
+        run_session(master, session)
 
 
 if __name__ == "__main__":
+    install_dependencies()
     main()

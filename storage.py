@@ -1,6 +1,8 @@
 import json
 import os
 import base64
+import shutil
+from datetime import datetime
 from cryptography.hazmat.primitives.kdf.pbkdf2 import PBKDF2HMAC
 from cryptography.hazmat.primitives import hashes
 from cryptography.fernet import Fernet
@@ -8,6 +10,23 @@ from cryptography.hazmat.backends import default_backend
 
 VAULT_FILE = "vault.json"
 META_FILE = "meta.json"
+
+def backup_vault():
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_dir = f"backups/backup_{timestamp}"
+    
+    os.makedirs(backup_dir, exist_ok=True)
+    shutil.copy2("vault.enc", f"{backup_dir}/vault.enc")
+    shutil.copy2("meta.json", f"{backup_dir}/meta.json")
+    print(f"Backup created: {backup_dir}")
+
+def restore_vault(backup_dir):
+    try:
+        shutil.copy2(f"{backup_dir}/vault.enc", "vault.enc")
+        shutil.copy2(f"{backup_dir}/meta.json", "meta.json")
+        print(f"Vault restored from: {backup_dir}")
+    except Exception as e:
+        print(f"Restore failed: {e}")
 
 
 def derive_key(master_password: str, salt: bytes) -> bytes:
