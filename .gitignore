@@ -8,6 +8,6 @@ vault.enc
 meta.json
 data.json
 password.json
-
+backups/
 # OS
 .DS_Store
