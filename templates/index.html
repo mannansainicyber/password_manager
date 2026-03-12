@@ -1,0 +1,1105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Vault — Password Manager</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/lucide/0.263.1/lucide.min.js"></script>
+</head>
+<style>
+  :root {
+    --bg:        #0b0b0e;
+    --surface:   #111116;
+    --surface2:  #18181f;
+    --border:    rgba(255,255,255,0.07);
+    --border2:   rgba(255,255,255,0.12);
+    --text:      #e8e8f0;
+    --muted:     #5a5a72;
+    --muted2:    #3a3a50;
+    --accent:    #7c6dfa;
+    --accent-glow: rgba(124,109,250,0.18);
+    --green:     #34d399;
+    --amber:     #fbbf24;
+    --red:       #f87171;
+    --sidebar-w: 220px;
+    --radius:    10px;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html, body {
+    height: 100%;
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Outfit', sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+  }
+
+  @keyframes fadeUp   { from { opacity:0; transform:translateY(10px); } to { opacity:1; transform:translateY(0); } }
+  @keyframes fadeIn   { from { opacity:0 } to { opacity:1 } }
+  @keyframes ripple   { to { transform:scale(4); opacity:0; } }
+  @keyframes shake    { 0%,100%{transform:translateX(0)} 20%,60%{transform:translateX(-5px)} 40%,80%{transform:translateX(5px)} }
+  @keyframes slideIn  { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:translateY(0)} }
+  @keyframes flashOut { 0%,60%{opacity:1} 100%{opacity:0} }
+  @keyframes barIn    { from{width:0} }
+  @keyframes dotBounce{ 0%,80%,100%{transform:translateY(0);opacity:.5} 40%{transform:translateY(-4px);opacity:1} }
+
+  #app { display:flex; height:100vh; }
+
+  /* ── SIDEBAR ─────────────────────── */
+  #sidebar {
+    width: var(--sidebar-w);
+    background: var(--surface);
+    border-right: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    padding: 20px 0;
+    flex-shrink: 0;
+  }
+
+  .brand {
+    display: flex; align-items: center; gap: 10px;
+    padding: 0 18px 22px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 12px;
+  }
+
+  .brand-icon {
+    width: 32px; height: 32px;
+    background: var(--accent);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    box-shadow: 0 0 16px var(--accent-glow);
+    flex-shrink: 0;
+  }
+
+  .brand-name { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand-sub  { font-size: 11px; color: var(--muted); }
+
+  .nav { flex:1; padding: 0 10px; display:flex; flex-direction:column; gap:2px; }
+
+  .nav-item {
+    display: flex; align-items: center; gap: 10px;
+    padding: 9px 10px; border-radius: 8px; cursor: pointer;
+    color: var(--muted); font-size: 13.5px; font-weight: 400;
+    transition: background 0.15s, color 0.15s;
+    border: none; background: transparent; width: 100%; text-align: left;
+  }
+  .nav-item svg { width:16px; height:16px; flex-shrink:0; }
+  .nav-item:hover  { background: var(--surface2); color: var(--text); }
+  .nav-item.active { background: var(--accent-glow); color: var(--accent); font-weight:500; }
+
+  .nav-sep { height:1px; background: var(--border); margin: 8px 0; }
+
+  .nav-badge {
+    margin-left: auto;
+    background: var(--surface2); color: var(--muted);
+    font-size: 11px; font-family: 'JetBrains Mono', monospace;
+    padding: 1px 7px; border-radius: 20px;
+  }
+  .nav-item.active .nav-badge { background: var(--accent); color: #fff; }
+
+  .sidebar-footer {
+    padding: 12px 10px 0;
+    border-top: 1px solid var(--border);
+    display: flex; flex-direction: column; gap: 4px;
+  }
+
+  .session-chip {
+    display: flex; align-items: center; gap: 8px;
+    padding: 8px 10px; border-radius: 8px;
+    background: var(--surface2); font-size: 12px; color: var(--muted);
+  }
+  .session-chip svg { width:14px; height:14px; }
+  .timer-val {
+    margin-left: auto;
+    font-family: 'JetBrains Mono', monospace; font-size: 12px; color: var(--text);
+  }
+  .timer-val.warn { color: var(--amber); }
+
+  /* ── MAIN ─────────────────────────── */
+  #main { flex:1; display:flex; flex-direction:column; overflow:hidden; }
+
+  .panel-view { display:none; flex-direction:column; height:100%; overflow:hidden; }
+  .panel-view.active { display:flex; animation:fadeIn .25s ease both; }
+
+  /* ── TOPBAR ───────────────────────── */
+  .topbar {
+    display: flex; align-items: center; gap: 12px;
+    padding: 14px 28px; border-bottom: 1px solid var(--border);
+    background: var(--bg); flex-shrink: 0;
+  }
+
+  .topbar-title { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+
+  .search-wrap { position:relative; flex:1; max-width:340px; }
+  .search-wrap svg {
+    position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    width:15px; height:15px; color:var(--muted); pointer-events:none;
+  }
+  #searchInput {
+    width:100%; background:var(--surface); border:1px solid var(--border);
+    border-radius:8px; padding:8px 12px 8px 34px;
+    font-family:'Outfit',sans-serif; font-size:13px; color:var(--text); outline:none;
+    transition:border-color .2s;
+  }
+  #searchInput::placeholder { color:var(--muted); }
+  #searchInput:focus { border-color:var(--border2); }
+
+  .topbar-actions { display:flex; gap:8px; margin-left:auto; }
+
+  /* ── STATS ROW ────────────────────── */
+  .stats-row { display:flex; gap:14px; padding:18px 28px; flex-shrink:0; }
+
+  .stat-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:14px 18px; display:flex; align-items:center; gap:14px; flex:1;
+    animation:fadeUp .4s ease both;
+  }
+  .stat-card:nth-child(2){animation-delay:.05s}
+  .stat-card:nth-child(3){animation-delay:.1s}
+
+  .stat-icon {
+    width:38px; height:38px; border-radius:9px;
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .stat-icon svg { width:18px; height:18px; }
+  .stat-icon.purple{ background:var(--accent-glow); color:var(--accent); }
+  .stat-icon.green { background:rgba(52,211,153,.12); color:var(--green); }
+  .stat-icon.amber { background:rgba(251,191,36,.12); color:var(--amber); }
+
+  .stat-val   { font-size:22px; font-weight:600; letter-spacing:-0.02em; line-height:1; }
+  .stat-label { font-size:12px; color:var(--muted); margin-top:3px; }
+
+  /* ── SCROLL AREA ─────────────────── */
+  .scroll-area { flex:1; overflow-y:auto; padding:20px 28px 28px; }
+  .scroll-area::-webkit-scrollbar { width:5px; }
+  .scroll-area::-webkit-scrollbar-thumb { background:var(--muted2); border-radius:3px; }
+
+  .section-label {
+    font-size:11px; font-weight:600; text-transform:uppercase;
+    letter-spacing:.07em; color:var(--muted);
+    margin-bottom:14px; padding-bottom:10px; border-bottom:1px solid var(--border);
+  }
+
+  /* ── SERVICE GRID ─────────────────── */
+  #serviceGrid {
+    display:grid;
+    grid-template-columns:repeat(auto-fill, minmax(210px, 1fr));
+    gap:10px;
+  }
+
+  .service-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:var(--radius);
+    padding:16px; cursor:pointer; position:relative; overflow:hidden;
+    transition:border-color .2s, background .2s, transform .15s, box-shadow .2s;
+    animation:slideIn .3s ease both;
+  }
+  .service-card::before {
+    content:''; position:absolute; inset:0;
+    background:linear-gradient(135deg, var(--accent-glow) 0%, transparent 55%);
+    opacity:0; transition:opacity .2s;
+  }
+  .service-card:hover { border-color:var(--border2); background:var(--surface2); transform:translateY(-1px); box-shadow:0 4px 20px rgba(0,0,0,.3); }
+  .service-card:hover::before { opacity:1; }
+  .service-card:active { transform:scale(.99); }
+
+  .card-top { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+
+  .svc-avatar {
+    width:36px; height:36px; border-radius:8px;
+    background:var(--surface2); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:14px; font-weight:600; color:var(--accent);
+    font-family:'JetBrains Mono',monospace; text-transform:uppercase;
+    position:relative; z-index:1;
+  }
+
+  .card-arrow { color:var(--muted2); transition:color .2s; }
+  .card-arrow svg { width:15px; height:15px; }
+  .service-card:hover .card-arrow { color:var(--muted); }
+
+  .svc-name { font-size:14px; font-weight:500; color:var(--text); margin-bottom:3px; position:relative; z-index:1; }
+  .svc-hint { font-size:12px; color:var(--muted); font-family:'JetBrains Mono',monospace; letter-spacing:.04em; position:relative; z-index:1; }
+
+  .empty-state {
+    grid-column:1/-1; display:flex; flex-direction:column; align-items:center;
+    justify-content:center; padding:64px 0; gap:10px; color:var(--muted2);
+  }
+  .empty-state svg { width:40px; height:40px; opacity:.35; }
+  .empty-state p   { font-size:14px; }
+  .empty-state small{ font-size:12px; }
+
+  /* ── BUTTONS ─────────────────────── */
+  .btn {
+    display:inline-flex; align-items:center; gap:7px;
+    padding:8px 16px; border-radius:8px;
+    font-family:'Outfit',sans-serif; font-size:13.5px; font-weight:500;
+    cursor:pointer; border:none; transition:all .15s;
+    position:relative; overflow:hidden; white-space:nowrap;
+  }
+  .btn svg { width:15px; height:15px; flex-shrink:0; }
+
+  .btn-primary { background:var(--accent); color:#fff; box-shadow:0 2px 12px var(--accent-glow); }
+  .btn-primary:hover { opacity:.88; box-shadow:0 4px 20px var(--accent-glow); }
+
+  .btn-ghost { background:var(--surface); border:1px solid var(--border); color:var(--muted); }
+  .btn-ghost:hover { background:var(--surface2); border-color:var(--border2); color:var(--text); }
+
+  .btn-danger { background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.25); color:var(--red); }
+  .btn-danger:hover { background:rgba(248,113,113,.18); }
+
+  .btn:active   { transform:scale(.97); }
+  .btn:disabled { opacity:.4; cursor:not-allowed; transform:none !important; }
+  .btn-full     { justify-content:center; width:100%; }
+
+  .ripple-el {
+    position:absolute; border-radius:50%;
+    background:rgba(255,255,255,.15); transform:scale(0);
+    animation:ripple .5s linear; pointer-events:none;
+  }
+
+  .dots { display:inline-flex; gap:3px; align-items:center; vertical-align:middle; }
+  .dots span { width:4px; height:4px; border-radius:50%; background:currentColor; animation:dotBounce .6s ease infinite; }
+  .dots span:nth-child(2){animation-delay:.1s}
+  .dots span:nth-child(3){animation-delay:.2s}
+
+  /* ── OVERLAY / MODAL ─────────────── */
+  .overlay {
+    position:fixed; inset:0;
+    background:rgba(0,0,0,.6); backdrop-filter:blur(4px);
+    display:flex; align-items:center; justify-content:center;
+    z-index:500; opacity:0; pointer-events:none; transition:opacity .2s;
+  }
+  .overlay.open { opacity:1; pointer-events:auto; }
+
+  .modal {
+    background:var(--surface); border:1px solid var(--border2); border-radius:14px;
+    padding:24px; width:360px; max-width:calc(100vw - 32px);
+    box-shadow:0 24px 80px rgba(0,0,0,.55);
+    transform:translateY(10px); opacity:0;
+    transition:transform .22s ease, opacity .22s ease;
+  }
+  .overlay.open .modal { transform:translateY(0); opacity:1; }
+
+  .modal-header { display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; }
+  .modal-title  { font-size:15px; font-weight:600; }
+
+  .icon-btn {
+    width:30px; height:30px; border-radius:7px;
+    border:1px solid var(--border); background:transparent;
+    cursor:pointer; display:flex; align-items:center; justify-content:center;
+    color:var(--muted); transition:background .15s, color .15s;
+  }
+  .icon-btn svg { width:14px; height:14px; }
+  .icon-btn:hover { background:var(--surface2); color:var(--text); }
+
+  .modal-stack { display:flex; flex-direction:column; gap:12px; }
+  .modal-row   { display:flex; gap:8px; }
+  .modal-row .btn { flex:1; justify-content:center; }
+
+  /* ── FIELDS / INPUTS ─────────────── */
+  .field { display:flex; flex-direction:column; gap:5px; }
+  .field label { font-size:11.5px; color:var(--muted); font-weight:500; text-transform:uppercase; letter-spacing:.05em; }
+
+  .input-wrap { position:relative; }
+
+  input[type=text], input[type=password], input[type=search] {
+    width:100%; background:var(--surface2); border:1px solid var(--border);
+    border-radius:8px; padding:10px 12px;
+    font-family:'Outfit',sans-serif; font-size:13.5px; color:var(--text); outline:none;
+    transition:border-color .2s;
+  }
+  input[type=password] { font-family:'JetBrains Mono',monospace; letter-spacing:.08em; padding-right:40px; }
+  input::placeholder  { color:var(--muted); }
+  input:focus         { border-color:var(--accent); }
+  input.shake         { animation:shake .35s ease; }
+
+  .eye-toggle {
+    position:absolute; right:10px; top:50%; transform:translateY(-50%);
+    background:none; border:none; cursor:pointer; color:var(--muted);
+    display:flex; align-items:center; padding:2px; transition:color .15s;
+  }
+  .eye-toggle svg { width:16px; height:16px; }
+  .eye-toggle:hover { color:var(--text); }
+
+  /* ── BANNER ──────────────────────── */
+  .banner {
+    display:flex; align-items:flex-start; gap:8px; border-radius:8px; padding:10px 12px;
+    font-size:12.5px; line-height:1.5;
+    max-height:0; opacity:0; overflow:hidden; pointer-events:none;
+    transition:max-height .3s, opacity .25s, margin .3s;
+  }
+  .banner.show { max-height:80px; opacity:1; pointer-events:auto; }
+  .banner svg  { width:15px; height:15px; flex-shrink:0; margin-top:1px; }
+  .banner.error   { background:rgba(248,113,113,.1); border:1px solid rgba(248,113,113,.25); color:var(--red); }
+  .banner.success { background:rgba(52,211,153,.1); border:1px solid rgba(52,211,153,.25); color:var(--green); }
+
+  /* ── STRENGTH ────────────────────── */
+  .str-wrap  { display:flex; flex-direction:column; gap:6px; }
+  .str-track { height:3px; background:var(--surface2); border-radius:2px; overflow:hidden; }
+  .str-fill  { height:100%; border-radius:2px; transition:width .4s ease, background .3s; animation:barIn .4s ease both; }
+  .str-meta  { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); }
+  .s-level   { font-family:'JetBrains Mono',monospace; font-weight:500; font-size:11px; }
+  .s-WEAK    { color:var(--red); }
+  .s-MEDIUM  { color:var(--amber); }
+  .s-STRONG  { color:var(--green); }
+
+  /* ── PW CARD ─────────────────────── */
+  .pw-card {
+    background:var(--surface2); border:1px solid var(--border); border-radius:8px;
+    padding:12px 40px 12px 14px; font-family:'JetBrains Mono',monospace; font-size:13px;
+    color:var(--text); position:relative; cursor:pointer;
+    transition:border-color .2s, background .2s, transform .15s;
+    word-break:break-all; min-height:44px; display:flex; align-items:center;
+  }
+  .pw-card:hover  { border-color:var(--border2); background:#1f1f28; }
+  .pw-card:active { transform:scale(.99); }
+
+  .pw-icon { position:absolute; right:13px; top:50%; transform:translateY(-50%); color:var(--muted2); transition:color .2s; }
+  .pw-icon svg { width:15px; height:15px; }
+  .pw-card:hover .pw-icon { color:var(--muted); }
+
+  .copy-flash {
+    position:absolute; inset:0; border-radius:8px;
+    background:var(--accent); display:flex; align-items:center; justify-content:center;
+    color:#fff; font-size:13px; font-family:'Outfit',sans-serif; font-weight:500;
+    gap:6px; opacity:0; pointer-events:none; transition:opacity .15s;
+  }
+  .copy-flash svg { width:14px; height:14px; }
+  .pw-card.copied .copy-flash { opacity:1; animation:flashOut .9s ease forwards; }
+
+  .pw-blurred .pw-text { filter:blur(6px); user-select:none; transition:filter .25s; }
+  .pw-blurred:hover .pw-text { filter:blur(0); }
+
+  /* ── SLIDER ──────────────────────── */
+  .slider-group { display:flex; flex-direction:column; gap:8px; }
+  .slider-head  { display:flex; justify-content:space-between; align-items:center; font-size:12px; color:var(--muted); }
+  .slider-val   {
+    font-family:'JetBrains Mono',monospace; font-size:13px; color:var(--text);
+    background:var(--surface2); border:1px solid var(--border);
+    padding:2px 8px; border-radius:5px; min-width:36px; text-align:center;
+  }
+
+  input[type=range] {
+    -webkit-appearance:none; appearance:none;
+    width:100%; height:3px; border-radius:2px; background:#2a2a38; outline:none; cursor:pointer;
+  }
+  input[type=range]::-webkit-slider-thumb {
+    -webkit-appearance:none; width:16px; height:16px; border-radius:50%;
+    background:var(--accent); cursor:pointer; transition:transform .15s, box-shadow .15s;
+  }
+  input[type=range]::-webkit-slider-thumb:hover { transform:scale(1.2); box-shadow:0 0 0 5px var(--accent-glow); }
+
+  /* ── TOGGLES ─────────────────────── */
+  .tog-row { display:flex; align-items:center; justify-content:space-between; padding:7px 0; border-bottom:1px solid var(--border); }
+  .tog-row:last-child { border-bottom:none; }
+  .tog-label       { font-size:13px; color:var(--text); }
+  .tog-label small { display:block; font-size:11px; color:var(--muted); font-family:'JetBrains Mono',monospace; }
+
+  .tog { position:relative; width:36px; height:20px; flex-shrink:0; }
+  .tog input { opacity:0; width:0; height:0; position:absolute; }
+  .tog-track { position:absolute; inset:0; background:var(--muted2); border-radius:20px; cursor:pointer; transition:background .2s; }
+  .tog input:checked + .tog-track { background:var(--accent); }
+  .tog-track::after { content:''; position:absolute; width:14px; height:14px; border-radius:50%; background:#fff; top:3px; left:3px; transition:transform .2s; box-shadow:0 1px 3px rgba(0,0,0,.3); }
+  .tog input:checked + .tog-track::after { transform:translateX(16px); }
+
+  /* ── DELETE CONFIRM ──────────────── */
+  .del-confirm { display:none; }
+  .del-confirm.show { display:block; animation:fadeIn .15s ease both; }
+
+  /* ── AUTH ────────────────────────── */
+  #authScreen {
+    position:fixed; inset:0; background:var(--bg);
+    display:flex; align-items:center; justify-content:center;
+    z-index:999; animation:fadeIn .4s ease both;
+  }
+  #authScreen.gone { display:none; }
+
+  .auth-box { width:380px; animation:fadeUp .5s ease both; }
+
+  .auth-logo { display:flex; flex-direction:column; align-items:center; gap:12px; margin-bottom:32px; }
+  .auth-logo-icon {
+    width:52px; height:52px; background:var(--accent); border-radius:14px;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:0 0 30px var(--accent-glow);
+  }
+  .auth-logo-icon svg { width:26px; height:26px; color:#fff; }
+  .auth-logo h1 { font-size:24px; font-weight:600; letter-spacing:-0.02em; }
+  .auth-logo p  { font-size:13px; color:var(--muted); }
+
+  .auth-card {
+    background:var(--surface); border:1px solid var(--border); border-radius:14px;
+    padding:28px; display:flex; flex-direction:column; gap:14px;
+  }
+
+  /* ── TOAST ───────────────────────── */
+  #toast {
+    position:fixed; bottom:24px; left:50%; transform:translateX(-50%) translateY(10px);
+    background:var(--surface); border:1px solid var(--border2); border-radius:8px;
+    padding:10px 18px; font-size:13px; color:var(--text);
+    box-shadow:0 8px 30px rgba(0,0,0,.4);
+    display:flex; align-items:center; gap:8px;
+    opacity:0; pointer-events:none; transition:opacity .2s, transform .2s; z-index:999;
+  }
+  #toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+  #toast svg  { width:15px; height:15px; color:var(--green); }
+</style>
+<body>
+
+<!-- ══════════════ AUTH ══════════════ -->
+<div id="authScreen">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <div class="auth-logo-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <h1 id="authTitle">Welcome back</h1>
+      <p id="authSub">Enter your master password to unlock</p>
+    </div>
+    <div class="auth-card">
+      <div id="authBanner" class="banner error">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span id="authBannerMsg"></span>
+      </div>
+      <div id="confirmField2" class="field" style="display:none;">
+        <label>Display name (optional)</label>
+        <input type="text" id="setupName" placeholder="Your name">
+      </div>
+      <div class="field">
+        <label>Master password</label>
+        <div class="input-wrap">
+          <input type="password" id="masterInput" placeholder="Enter password…" autocomplete="current-password">
+          <button class="eye-toggle" id="authEye">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>
+          </button>
+        </div>
+      </div>
+      <div id="confirmFieldWrap" class="field" style="display:none;">
+        <label>Confirm password</label>
+        <input type="password" id="confirmInput" placeholder="Repeat password…">
+      </div>
+      <button class="btn btn-primary btn-full" id="authBtn" style="padding:11px 16px;">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+        Unlock Vault
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════ DASHBOARD ══════════════ -->
+<div id="app" style="display:none;">
+
+  <!-- SIDEBAR -->
+  <nav id="sidebar">
+    <div class="brand">
+      <div class="brand-icon">
+        <svg xmlns="http://www.w3.org/2000/svg" width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </div>
+      <div>
+        <div class="brand-name">Vault</div>
+        <div class="brand-sub" id="brandSub">Password Manager</div>
+      </div>
+    </div>
+
+    <div class="nav">
+      <button class="nav-item active" onclick="switchPanel('vault', this)">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/></svg>
+        All passwords
+        <span class="nav-badge" id="countBadge">0</span>
+      </button>
+      <button class="nav-item" onclick="switchPanel('generate', this)">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Generator
+      </button>
+      <div class="nav-sep"></div>
+      <button class="nav-item" onclick="doBackup()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/></svg>
+        Backup vault
+      </button>
+    </div>
+
+    <div class="sidebar-footer">
+      <div class="session-chip">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        Session
+        <span class="timer-val" id="timerVal">5:00</span>
+      </div>
+      <button class="nav-item" style="color:var(--red);" onclick="doLogout()">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+        Log out
+      </button>
+    </div>
+  </nav>
+
+  <!-- MAIN -->
+  <div id="main">
+
+    <!-- VAULT PANEL -->
+    <div id="vaultPanel" class="panel-view active">
+      <div class="topbar">
+        <span class="topbar-title">Passwords</span>
+        <div class="search-wrap">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input type="search" id="searchInput" placeholder="Search services…">
+        </div>
+        <div class="topbar-actions">
+          <button class="btn btn-primary" onclick="openModal('addModal')">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+            Add password
+          </button>
+        </div>
+      </div>
+
+      <div class="stats-row">
+        <div class="stat-card">
+          <div class="stat-icon purple">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+          </div>
+          <div><div class="stat-val" id="statTotal">0</div><div class="stat-label">Saved passwords</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon green">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <div><div class="stat-val" id="statStrong">0</div><div class="stat-label">Strong passwords</div></div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon amber">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+          </div>
+          <div><div class="stat-val" id="statWeak">0</div><div class="stat-label">Weak passwords</div></div>
+        </div>
+      </div>
+
+      <div class="scroll-area">
+        <div class="section-label">All entries</div>
+        <div id="serviceGrid"></div>
+      </div>
+    </div>
+
+    <!-- GENERATE PANEL -->
+    <div id="generatePanel" class="panel-view">
+      <div class="topbar">
+        <span class="topbar-title">Password Generator</span>
+      </div>
+      <div class="scroll-area">
+        <div style="max-width:500px;">
+          <div class="section-label">Generate</div>
+          <div class="modal-stack">
+            <div id="genOutput" style="display:none;">
+              <div class="pw-card" id="genCard">
+                <span class="pw-text" id="genPwText"></span>
+                <span class="pw-icon">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                </span>
+                <div class="copy-flash">
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+                  Copied
+                </div>
+              </div>
+              <div class="str-wrap" style="margin-top:10px;">
+                <div class="str-track"><div class="str-fill" id="genStrBar"></div></div>
+                <div class="str-meta">
+                  <span>Entropy: <span id="genEntropy" style="font-family:'JetBrains Mono',monospace;"></span> bits</span>
+                  <span class="s-level" id="genStrLevel"></span>
+                </div>
+              </div>
+            </div>
+
+            <div class="slider-group" style="margin-top:4px;">
+              <div class="slider-head">
+                <span>Password length</span>
+                <span class="slider-val" id="genLenVal">16</span>
+              </div>
+              <input type="range" id="genLenSlider" min="6" max="64" value="16">
+            </div>
+
+            <div>
+              <div class="section-label" style="margin-top:8px;">Character sets</div>
+              <div class="tog-row">
+                <div class="tog-label">Uppercase <small>A – Z</small></div>
+                <label class="tog"><input type="checkbox" id="genUpper" checked><span class="tog-track"></span></label>
+              </div>
+              <div class="tog-row">
+                <div class="tog-label">Numbers <small>0 – 9</small></div>
+                <label class="tog"><input type="checkbox" id="genDigits" checked><span class="tog-track"></span></label>
+              </div>
+              <div class="tog-row">
+                <div class="tog-label">Symbols <small>! @ # $ % ^ &amp; *</small></div>
+                <label class="tog"><input type="checkbox" id="genSymbols" checked><span class="tog-track"></span></label>
+              </div>
+            </div>
+
+            <button class="btn btn-primary btn-full" id="genBtn" style="margin-top:4px;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+              Generate password
+            </button>
+            <button class="btn btn-ghost btn-full" id="saveGenBtn" style="display:none;">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+              Save to vault
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /main -->
+</div><!-- /app -->
+
+<!-- ══════════════ MODALS ══════════════ -->
+
+<!-- ADD -->
+<div class="overlay" id="addModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Add password</span>
+      <button class="icon-btn" onclick="closeModal('addModal')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-stack">
+      <div id="addBanner" class="banner error"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="addBannerMsg"></span></div>
+      <div class="field">
+        <label>Service name</label>
+        <input type="text" id="addService" placeholder="e.g. GitHub, Gmail…" autocomplete="off">
+      </div>
+      <div class="field">
+        <label>Password</label>
+        <div class="input-wrap">
+          <input type="password" id="addPw" placeholder="Enter or generate…" autocomplete="new-password">
+          <button class="eye-toggle" id="addEye"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg></button>
+        </div>
+      </div>
+      <div class="str-wrap" id="addStrWrap" style="display:none;">
+        <div class="str-track"><div class="str-fill" id="addStrBar"></div></div>
+        <div class="str-meta"><span>Strength</span><span class="s-level" id="addStrLevel"></span></div>
+      </div>
+      <button class="btn btn-ghost" id="fillGenBtn" style="font-size:12.5px; color:var(--muted);">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+        Fill with generated password
+      </button>
+      <div class="modal-row" style="margin-top:4px;">
+        <button class="btn btn-ghost" onclick="closeModal('addModal')">Cancel</button>
+        <button class="btn btn-primary" id="addSaveBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- VIEW -->
+<div class="overlay" id="viewModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="viewTitle">Service</span>
+      <button class="icon-btn" onclick="closeModal('viewModal')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-stack">
+      <div class="field"><label>Password</label></div>
+      <div class="pw-card pw-blurred" id="viewPwCard">
+        <span class="pw-text" id="viewPwText">••••••••••••</span>
+        <span class="pw-icon"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+        <div class="copy-flash"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg> Copied</div>
+      </div>
+      <p style="font-size:11px; color:var(--muted); text-align:center;">Hover to reveal · click to copy</p>
+
+      <div class="str-wrap" id="viewStrWrap" style="display:none;">
+        <div class="str-track"><div class="str-fill" id="viewStrBar"></div></div>
+        <div class="str-meta">
+          <span>Entropy: <span id="viewEntropy" style="font-family:'JetBrains Mono',monospace;"></span> bits</span>
+          <span class="s-level" id="viewStrLevel"></span>
+        </div>
+        <div style="font-size:11.5px; color:var(--red); margin-top:4px; line-height:1.6;" id="viewIssues"></div>
+      </div>
+
+      <div class="del-confirm" id="delConfirm">
+        <div style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--red); margin-bottom:10px;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/></svg>
+          Permanently delete this entry?
+        </div>
+        <div class="modal-row">
+          <button class="btn btn-ghost" onclick="hideDelConfirm()">Cancel</button>
+          <button class="btn btn-danger" id="delConfirmBtn">
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+            Delete
+          </button>
+        </div>
+      </div>
+
+      <div class="modal-row" id="viewActions">
+        <button class="btn btn-danger" id="deleteBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/></svg>
+          Delete
+        </button>
+        <button class="btn btn-ghost" onclick="closeModal('viewModal')">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- SAVE GENERATED -->
+<div class="overlay" id="saveGenModal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">Save to vault</span>
+      <button class="icon-btn" onclick="closeModal('saveGenModal')"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+    </div>
+    <div class="modal-stack">
+      <div id="saveGenBanner" class="banner error"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg><span id="saveGenBannerMsg"></span></div>
+      <div class="field">
+        <label>Service name</label>
+        <input type="text" id="saveGenService" placeholder="e.g. Twitter, Notion…" autocomplete="off">
+      </div>
+      <div class="modal-row" style="margin-top:4px;">
+        <button class="btn btn-ghost" onclick="closeModal('saveGenModal')">Cancel</button>
+        <button class="btn btn-primary" id="saveGenConfirmBtn">
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/></svg>
+          Save
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- TOAST -->
+<div id="toast">
+  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="20 6 9 17 4 12"/></svg>
+  <span id="toastMsg"></span>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+const SCRAMBLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*';
+
+// ── helpers ──
+function toast(msg) {
+  $('toastMsg').textContent = msg;
+  const t = $('toast');
+  t.classList.add('show');
+  clearTimeout(t._t);
+  t._t = setTimeout(() => t.classList.remove('show'), 2500);
+}
+function openModal(id)  { $(id).classList.add('open'); }
+function closeModal(id) { $(id).classList.remove('open'); }
+
+function showBanner(banId, msgId, msg) { $(msgId).textContent = msg; $(banId).classList.add('show'); }
+function hideBanner(id) { $(id).classList.remove('show'); }
+
+function rippleBtn(btn, e) {
+  const r = btn.getBoundingClientRect(), el = document.createElement('span');
+  el.className = 'ripple-el';
+  const s = Math.max(r.width, r.height);
+  el.style.cssText = `width:${s}px;height:${s}px;left:${e.clientX-r.left-s/2}px;top:${e.clientY-r.top-s/2}px`;
+  btn.appendChild(el);
+  el.addEventListener('animationend', () => el.remove());
+}
+
+function loading(btn, on) {
+  btn.disabled = on;
+  if (on) { btn._html = btn.innerHTML; btn.innerHTML = `<span class="dots"><span></span><span></span><span></span></span>`; }
+  else btn.innerHTML = btn._html || btn.innerHTML;
+}
+
+function toggleEye(input, btn) {
+  const show = input.type === 'password';
+  input.type = show ? 'text' : 'password';
+  btn.innerHTML = show
+    ? `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19"/><line x1="1" y1="1" x2="23" y2="23"/></svg>`
+    : `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/></svg>`;
+}
+
+function esc(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ── scramble ──
+function scramble(el, final, dur = 450) {
+  const steps = 10, ms = dur/steps; let f = 0;
+  clearInterval(el._sc);
+  el._sc = setInterval(() => {
+    f++;
+    const rev = Math.floor((f/steps)*final.length);
+    let s = '';
+    for (let i = 0; i < final.length; i++)
+      s += i < rev ? final[i] : SCRAMBLE[Math.floor(Math.random()*SCRAMBLE.length)];
+    el.textContent = s;
+    if (f >= steps) { clearInterval(el._sc); el.textContent = final; }
+  }, ms);
+}
+
+// ── strength ──
+const SC = { WEAK:'#f87171', MEDIUM:'#fbbf24', STRONG:'#34d399' };
+const SW = { WEAK:'33%',     MEDIUM:'66%',     STRONG:'100%' };
+function applyStr(bar, lvl, s) {
+  bar.style.background = SC[s.level]; bar.style.width = SW[s.level];
+  lvl.textContent = s.level; lvl.className = `s-level s-${s.level}`;
+}
+async function getStr(pw) {
+  return fetch('/api/strength',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})}).then(r=>r.json());
+}
+
+// ── copy ──
+function makeCopyable(card, getPw) {
+  card.onclick = () => {
+    const pw = typeof getPw === 'function' ? getPw() : getPw;
+    if (!pw || pw.startsWith('•')) return;
+    card.classList.remove('pw-blurred');
+    navigator.clipboard.writeText(pw).then(() => {
+      card.classList.add('copied');
+      setTimeout(() => card.classList.remove('copied'), 900);
+    });
+  };
+}
+
+// ── slider ──
+function syncSlider(sl, disp) {
+  const pct = ((sl.value - sl.min)/(sl.max - sl.min))*100;
+  sl.style.background = `linear-gradient(to right, var(--accent) ${pct}%, #2a2a38 ${pct}%)`;
+  disp.textContent = sl.value;
+}
+const genSl = $('genLenSlider'), genDisp = $('genLenVal');
+genSl.addEventListener('input', () => syncSlider(genSl, genDisp));
+syncSlider(genSl, genDisp);
+
+// ── panels ──
+function switchPanel(name, btn) {
+  document.querySelectorAll('.nav-item').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.panel-view').forEach(p => { p.classList.remove('active'); p.style.display='none'; });
+  const el = $(name+'Panel');
+  if (el) { el.style.display='flex'; el.classList.add('active'); }
+}
+
+// ── timer ──
+let _timer, _secs = 300;
+function startTimer() {
+  _secs = 300; clearInterval(_timer);
+  _timer = setInterval(() => {
+    _secs--;
+    if (_secs <= 0) { clearInterval(_timer); doLogout(); return; }
+    const m = Math.floor(_secs/60), s = String(_secs%60).padStart(2,'0');
+    $('timerVal').textContent = `${m}:${s}`;
+    $('timerVal').className = 'timer-val' + (_secs < 60 ? ' warn' : '');
+  }, 1000);
+}
+document.addEventListener('click', () => { if ($('app').style.display !== 'none') _secs = 300; });
+
+// ── stats ──
+let _stCache = {};
+async function updateStats(services) {
+  $('statTotal').textContent = services.length;
+  $('countBadge').textContent = services.length;
+  let strong = 0, weak = 0;
+  await Promise.all(services.map(async svc => {
+    if (_stCache[svc]) {
+      if (_stCache[svc]==='STRONG') strong++; if (_stCache[svc]==='WEAK') weak++; return;
+    }
+    try {
+      const r = await fetch(`/api/vault/${encodeURIComponent(svc)}`).then(r=>r.json());
+      const s = await getStr(r.password);
+      _stCache[svc] = s.level;
+      if (s.level==='STRONG') strong++; if (s.level==='WEAK') weak++;
+    } catch{}
+  }));
+  $('statStrong').textContent = strong;
+  $('statWeak').textContent = weak;
+}
+
+// ══════════ AUTH ══════════
+let isSetup = false;
+async function init() {
+  const r = await fetch('/api/status').then(r=>r.json());
+  isSetup = r.setup;
+  if (r.logged_in) { enterDash(); return; }
+  if (!r.setup) {
+    $('authTitle').textContent = 'Create your vault';
+    $('authSub').textContent = 'Set a master password to get started.';
+    $('authBtn').innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Create Vault`;
+    $('confirmFieldWrap').style.display = 'flex';
+  }
+}
+
+$('authEye').addEventListener('click', () => toggleEye($('masterInput'), $('authEye')));
+
+$('authBtn').addEventListener('click', async function(e) {
+  rippleBtn(this, e);
+  const master = $('masterInput').value, confirm = $('confirmInput').value;
+  if (!master) { $('masterInput').classList.add('shake'); setTimeout(()=>$('masterInput').classList.remove('shake'),400); return; }
+  if (!isSetup) {
+    if (master.length < 6) { showBanner('authBanner','authBannerMsg','Minimum 6 characters'); return; }
+    if (master !== confirm) { showBanner('authBanner','authBannerMsg','Passwords do not match'); return; }
+    loading(this, true);
+    const r = await fetch('/api/setup',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:master})}).then(r=>r.json());
+    loading(this, false);
+    if (!r.ok) { showBanner('authBanner','authBannerMsg',r.error||'Error'); return; }
+  } else {
+    loading(this, true);
+    const r = await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:master})}).then(r=>r.json());
+    loading(this, false);
+    if (!r.ok) { showBanner('authBanner','authBannerMsg','Wrong master password'); $('masterInput').classList.add('shake'); setTimeout(()=>$('masterInput').classList.remove('shake'),400); return; }
+  }
+  enterDash();
+});
+$('masterInput').addEventListener('keydown', e => { if(e.key==='Enter') $('authBtn').click(); });
+
+// ══════════ DASHBOARD ══════════
+async function enterDash() {
+  $('authScreen').classList.add('gone');
+  $('app').style.display = 'flex';
+  startTimer();
+  await loadVault();
+}
+
+let allServices = [];
+async function loadVault() {
+  _stCache = {};
+  const r = await fetch('/api/vault').then(r=>r.json());
+  if (r.error) { doLogout(); return; }
+  allServices = r.services;
+  renderGrid(allServices);
+  updateStats(allServices);
+}
+
+function renderGrid(svcs) {
+  const g = $('serviceGrid');
+  if (!svcs.length) {
+    g.innerHTML = `<div class="empty-state">
+      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      <p>No passwords saved yet</p>
+      <small>Click "Add password" to get started</small>
+    </div>`; return;
+  }
+  g.innerHTML = '';
+  svcs.forEach((svc, i) => {
+    const c = document.createElement('div');
+    c.className = 'service-card';
+    c.style.animationDelay = `${i*30}ms`;
+    c.innerHTML = `
+      <div class="card-top">
+        <div class="svc-avatar">${esc(svc.charAt(0).toUpperCase())}</div>
+        <span class="card-arrow"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"/></svg></span>
+      </div>
+      <div class="svc-name">${esc(svc)}</div>
+      <div class="svc-hint">••••••••</div>`;
+    c.addEventListener('click', () => openViewModal(svc));
+    g.appendChild(c);
+  });
+}
+
+$('searchInput').addEventListener('input', function() {
+  const t = this.value.toLowerCase();
+  renderGrid(allServices.filter(s => s.toLowerCase().includes(t)));
+});
+
+async function doLogout() {
+  clearInterval(_timer);
+  await fetch('/api/logout',{method:'POST'});
+  $('app').style.display = 'none';
+  $('authScreen').classList.remove('gone');
+  $('masterInput').value = '';
+  hideBanner('authBanner');
+}
+
+// ══════════ VIEW MODAL ══════════
+let curSvc = null;
+async function openViewModal(svc) {
+  curSvc = svc;
+  $('viewTitle').textContent = svc;
+  $('viewPwText').textContent = '••••••••••••';
+  $('viewPwCard').className = 'pw-card pw-blurred';
+  $('viewStrWrap').style.display = 'none';
+  $('delConfirm').classList.remove('show');
+  $('viewActions').style.display = 'flex';
+  openModal('viewModal');
+  const r = await fetch(`/api/vault/${encodeURIComponent(svc)}`).then(r=>r.json());
+  if (!r.password) return;
+  $('viewPwText').textContent = r.password;
+  makeCopyable($('viewPwCard'), () => r.password);
+  const s = await getStr(r.password);
+  $('viewStrWrap').style.display = 'flex';
+  applyStr($('viewStrBar'), $('viewStrLevel'), s);
+  $('viewEntropy').textContent = s.entropy;
+  $('viewIssues').textContent = s.issues.join(' · ');
+}
+
+$('deleteBtn').addEventListener('click', () => { $('delConfirm').classList.add('show'); $('viewActions').style.display='none'; });
+function hideDelConfirm() { $('delConfirm').classList.remove('show'); $('viewActions').style.display='flex'; }
+$('delConfirmBtn').addEventListener('click', async function(e) {
+  rippleBtn(this, e); loading(this, true);
+  await fetch(`/api/vault/${encodeURIComponent(curSvc)}`,{method:'DELETE'});
+  loading(this, false);
+  closeModal('viewModal');
+  delete _stCache[curSvc];
+  await loadVault();
+  toast(`"${curSvc}" deleted`);
+});
+
+// ══════════ ADD MODAL ══════════
+$('addEye').addEventListener('click', () => toggleEye($('addPw'), $('addEye')));
+$('addPw').addEventListener('input', async function() {
+  if (!this.value) { $('addStrWrap').style.display='none'; return; }
+  $('addStrWrap').style.display = 'flex';
+  applyStr($('addStrBar'), $('addStrLevel'), await getStr(this.value));
+});
+
+let lastGen = '';
+$('fillGenBtn').addEventListener('click', () => {
+  if (lastGen) { $('addPw').value = lastGen; $('addPw').dispatchEvent(new Event('input')); }
+});
+
+$('addSaveBtn').addEventListener('click', async function(e) {
+  rippleBtn(this, e);
+  const svc = $('addService').value.trim(), pw = $('addPw').value.trim();
+  if (!svc || !pw) { showBanner('addBanner','addBannerMsg','Both fields required'); return; }
+  loading(this, true);
+  const r = await fetch('/api/vault',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:svc,password:pw})}).then(r=>r.json());
+  loading(this, false);
+  if (!r.ok) { showBanner('addBanner','addBannerMsg',r.error||'Failed'); return; }
+  closeModal('addModal');
+  $('addService').value = ''; $('addPw').value = '';
+  hideBanner('addBanner'); $('addStrWrap').style.display='none';
+  await loadVault();
+  toast(`"${svc}" saved`);
+});
+
+// ══════════ GENERATOR ══════════
+$('genBtn').addEventListener('click', async function(e) {
+  rippleBtn(this, e); loading(this, true);
+  const r = await fetch(`/api/generate?length=${genSl.value}&upper=${$('genUpper').checked}&digits=${$('genDigits').checked}&symbols=${$('genSymbols').checked}`).then(r=>r.json());
+  loading(this, false);
+  lastGen = r.password;
+  $('genOutput').style.display = 'block';
+  $('saveGenBtn').style.display = 'flex';
+  scramble($('genPwText'), r.password);
+  makeCopyable($('genCard'), () => r.password);
+  applyStr($('genStrBar'), $('genStrLevel'), r.strength);
+  $('genEntropy').textContent = r.strength.entropy;
+});
+
+$('saveGenBtn').addEventListener('click', () => { $('saveGenService').value=''; hideBanner('saveGenBanner'); openModal('saveGenModal'); setTimeout(()=>$('saveGenService').focus(),200); });
+$('saveGenConfirmBtn').addEventListener('click', async function(e) {
+  rippleBtn(this, e);
+  const svc = $('saveGenService').value.trim();
+  if (!svc) { showBanner('saveGenBanner','saveGenBannerMsg','Service name required'); return; }
+  loading(this, true);
+  const r = await fetch('/api/vault',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({service:svc,password:lastGen})}).then(r=>r.json());
+  loading(this, false);
+  if (!r.ok) { showBanner('saveGenBanner','saveGenBannerMsg',r.error||'Failed'); return; }
+  closeModal('saveGenModal');
+  await loadVault();
+  toast(`"${svc}" saved to vault`);
+});
+
+// ══════════ BACKUP ══════════
+async function doBackup() { await fetch('/api/backup',{method:'POST'}); toast('Backup created'); }
+
+// ══════════ BACKDROP CLOSE ══════════
+document.querySelectorAll('.overlay').forEach(o => o.addEventListener('click', e => { if(e.target===o) o.classList.remove('open'); }));
+document.addEventListener('keydown', e => { if(e.key==='Escape') document.querySelectorAll('.overlay.open').forEach(o=>o.classList.remove('open')); });
+
+init();
+</script>
+</body>
+</html>
